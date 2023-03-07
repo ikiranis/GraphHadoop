@@ -31,7 +31,7 @@ public class Graph {
                 return;
             }
 
-            // Προσθήκη των λέξεων στο context του mapper
+            // Προσθήκη των κορυφών στο context του mapper
             node1.set(pair.getFirst());
             node2.set(pair.getSecond());
 
