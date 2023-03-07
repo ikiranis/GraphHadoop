@@ -23,6 +23,7 @@ public class Graph {
             String line = value.toString();
             Pair pair;
 
+            // Ανάγνωση του ζεύγους κορυφών
             try {
                 pair = new Pair(line);
                 id++;
