@@ -14,9 +14,9 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class Graph {
-    public static class GraphMapper extends Mapper<Object, Text, IntWritable, IntWritable> {
-        private final IntWritable node1 = new IntWritable();
-        private final IntWritable node2 = new IntWritable();
+    public static class GraphMapper extends Mapper<Object, Text, Text, IntWritable> {
+        private final Text node = new Text();
+        private final IntWritable inOut = new IntWritable();
         private int id = 0;
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
@@ -32,25 +32,36 @@ public class Graph {
                 return;
             }
 
-            // Προσθήκη των κορυφών στο context του mapper
-            node1.set(pair.getFirst());
-            node2.set(pair.getSecond());
+            // Η πρώτη κορυφή έχει εξερχόμενη ακμή
+            node.set(String.valueOf(pair.getFirst()));
+            inOut.set(1);
+            context.write(node, inOut);
 
-            context.write(node1, node2);
+            // Η δεύτερη κορυφή έχει εισερχόμενη ακμή
+            node.set(String.valueOf(pair.getSecond()));
+            inOut.set(-1);
+            context.write(node, inOut);
         }
     }
 
-    public static class GraphReducer extends Reducer<Text, IntWritable, Text, IntWritable> {
-        private final IntWritable result = new IntWritable();
+    public static class GraphReducer extends Reducer<Text, IntWritable, Text, Text> {
+        private final Text result = new Text();
 
         public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            int sum = 0;
+            int in = 0;
+            int out = 0;
 
+            // Αθροίζουμε τις εξερχόμενες και εισερχόμενες ακμές
             for (IntWritable val : values) {
-                sum += val.get();
+               if(val.get() == 1) {
+                    out++;
+                } else {
+                    in++;
+                }
             }
 
-            result.set(sum);
+            // Εμφανίζουμε το αποτέλεσμα
+            result.set(String.format("(%d, %d)", out, in));
 
             context.write(key, result);
         }
@@ -58,11 +69,11 @@ public class Graph {
 
     public static void main(String[] args) throws Exception {
         Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "Movies in genres");
+        Job job = Job.getInstance(conf, "Graph");
         job.setJarByClass(Graph.class);
         job.setMapperClass(GraphMapper.class);
-//        job.setReducerClass(GraphReducer.class);
-        job.setOutputKeyClass(IntWritable.class);
+        job.setReducerClass(GraphReducer.class);
+        job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
