@@ -14,34 +14,28 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class Graph {
-    public static class GraphMapper extends Mapper<Object, Text, Text, IntWritable> {
-        private final static IntWritable one = new IntWritable();
-        private final Text word = new Text();
+    public static class GraphMapper extends Mapper<Object, Text, IntWritable, IntWritable> {
+        private final IntWritable node1 = new IntWritable();
+        private final IntWritable node2 = new IntWritable();
+        private int id = 0;
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String line = value.toString();
+            Pair pair;
+
+            try {
+                pair = new Pair(line);
+                id++;
+            } catch (IllegalArgumentException e) {
+                System.out.println(e.getMessage());
+                return;
+            }
 
             // Προσθήκη των λέξεων στο context του mapper
-            StringTokenizer itr = new StringTokenizer(line);
-            while (itr.hasMoreTokens()) {
-                // Reads each word and removes (strips) the white space
-                String token = itr.nextToken().strip();
+            node1.set(pair.getFirst());
+            node2.set(pair.getSecond());
 
-                // Αν η λέξη είναι μικρότερη από 4 χαρακτήρες, τότε την παραλείπουμε
-                if(token.length() < 4) {
-                    continue;
-                }
-
-                word.set(String.valueOf(token));
-
-                try {
-                    one.set(1);
-
-                    context.write(word, one);
-                } catch (Exception e) {
-                    System.out.println(e.getMessage());
-                }
-            }
+            context.write(node1, node2);
         }
     }
 
@@ -66,11 +60,48 @@ public class Graph {
         Job job = Job.getInstance(conf, "Movies in genres");
         job.setJarByClass(Graph.class);
         job.setMapperClass(GraphMapper.class);
-        job.setReducerClass(GraphReducer.class);
-        job.setOutputKeyClass(Text.class);
+//        job.setReducerClass(GraphReducer.class);
+        job.setOutputKeyClass(IntWritable.class);
         job.setOutputValueClass(IntWritable.class);
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+
+    /**
+     * Κλάση για το ζεύγος των κορυφών
+     */
+    public static class Pair {
+        private final int first;
+        private final int second;
+
+        public Pair(String line) throws IllegalArgumentException {
+            if(!line.matches("^\\d+.*")) {
+                throw new IllegalArgumentException("Line does not start with a number");
+            }
+
+            String[] words = line.split("\\s+");
+
+            if(words.length != 2) {
+                throw new IllegalArgumentException("Line does not contain exactly two words");
+            }
+
+            for(String word : words) {
+                if(!word.matches("\\d+")) {
+                    throw new IllegalArgumentException("Line contains a word that is not a number");
+                }
+            }
+
+            this.first = Integer.parseInt(words[0]);
+            this.second = Integer.parseInt(words[1]);
+        }
+
+        public int getFirst() {
+            return first;
+        }
+
+        public int getSecond() {
+            return second;
+        }
     }
 }
