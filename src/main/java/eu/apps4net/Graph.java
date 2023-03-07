@@ -21,7 +21,6 @@ public class Graph {
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String line = value.toString();
 
-
             // Προσθήκη των λέξεων στο context του mapper
             StringTokenizer itr = new StringTokenizer(line);
             while (itr.hasMoreTokens()) {
