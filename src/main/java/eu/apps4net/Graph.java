@@ -1,5 +1,8 @@
 package eu.apps4net;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.StringTokenizer;
 
@@ -14,10 +17,13 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class Graph {
+    private static final String TMP_PATH = "output_tmp";
+    private final static int minimumIn = 3;
+    private final static int minimumOut = 2;
+
     public static class GraphMapper extends Mapper<Object, Text, Text, IntWritable> {
         private final Text node = new Text();
         private final IntWritable inOut = new IntWritable();
-        private int id = 0;
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String line = value.toString();
@@ -26,7 +32,6 @@ public class Graph {
             // Ανάγνωση του ζεύγους κορυφών
             try {
                 pair = new Pair(line);
-                id++;
             } catch (IllegalArgumentException e) {
                 System.out.println(e.getMessage());
                 return;
@@ -44,7 +49,7 @@ public class Graph {
         }
     }
 
-    public static class GraphReducer extends Reducer<Text, IntWritable, Text, Text> {
+    public static class GraphInOutReducer extends Reducer<Text, IntWritable, Text, Text> {
         private final Text result = new Text();
 
         public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
@@ -60,6 +65,10 @@ public class Graph {
                 }
             }
 
+            if(out < minimumOut || in < minimumIn) {
+                return;
+            }
+
             // Εμφανίζουμε το αποτέλεσμα
             result.set(String.format("(%d, %d)", out, in));
 
@@ -67,17 +76,122 @@ public class Graph {
         }
     }
 
+    public static class GraphDegreeReducer extends Reducer<Text, IntWritable, Text, Text> {
+        private final Text result = new Text();
+
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+            Configuration conf = context.getConfiguration();
+            double avg = 0;
+
+            if(conf.get("AVG") != null) {
+                avg = Double.parseDouble(conf.get("AVG"));
+            }
+
+            int sum = 0;
+
+            // Αθροίζουμε τις εξερχόμενες και εισερχόμενες ακμές
+            for (IntWritable val : values) {
+                sum ++;
+            }
+
+            if(avg > 0 && sum < avg) {
+                return;
+            }
+
+            // Εμφανίζουμε το αποτέλεσμα
+            result.set(String.format("%d", sum));
+
+            context.write(key, result);
+        }
+    }
+
+    private static double calculateAVG() throws IOException {
+        int degreeSum = 0;
+        int counter = 0;
+
+        File fs = new File(TMP_PATH + "/part-r-00000");
+        if (!fs.exists()) throw new IOException("Output not found!");
+
+        // average = total cases / number of records;
+        BufferedReader br = new BufferedReader(new FileReader(fs));
+        String line;
+        while ((line = br.readLine()) != null) {
+            StringTokenizer st = new StringTokenizer(line);
+            // grab type
+            String node = st.nextToken();
+            String degree = st.nextToken();
+
+            degreeSum += Integer.parseInt(degree);
+            counter++;
+        }
+
+        double average = (double) degreeSum / counter;
+        System.out.println("The average is: " + average);
+        return average;
+    }
+
+    private static void deleteDirectory(File directoryToBeDeleted) {
+        File[] allContents = directoryToBeDeleted.listFiles();
+        if (allContents != null) {
+            for (File file : allContents) {
+                deleteDirectory(file);
+            }
+        }
+        directoryToBeDeleted.delete();
+    }
+
     public static void main(String[] args) throws Exception {
+        Class<? extends Reducer> reducerClass = null;
+        String jobName = "";
+
+        if(args[2] == null) {
+            System.out.println("Add 3rd parameter to specify the program you want to run (1 or 2)");
+            return;
+        }
+
+        if(args[2].equals("1")) {
+            reducerClass = GraphInOutReducer.class;
+            jobName = "Graph In and Out Nodes";
+        } else {
+            reducerClass = GraphDegreeReducer.class;
+            jobName = "Graph nodes degree";
+        }
+
         Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "Graph");
+        Job job = Job.getInstance(conf, jobName);
         job.setJarByClass(Graph.class);
         job.setMapperClass(GraphMapper.class);
-        job.setReducerClass(GraphReducer.class);
+        job.setReducerClass(reducerClass);
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
         FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
-        System.exit(job.waitForCompletion(true) ? 0 : 1);
+        FileOutputFormat.setOutputPath(job, new Path(args[2].equals("1") ? args[1] : TMP_PATH));
+
+        if(args[2].equals("1")) {
+            System.exit(job.waitForCompletion(true) ? 0 : 1);
+        }
+
+        job.waitForCompletion(true);
+
+        try {
+            double avg = calculateAVG();
+            File tmp = new File(TMP_PATH);
+            deleteDirectory(tmp);
+
+            conf.setDouble("AVG", avg);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        Job jobFinal = Job.getInstance(conf, jobName);
+        jobFinal.setJarByClass(Graph.class);
+        jobFinal.setMapperClass(GraphMapper.class);
+        jobFinal.setReducerClass(reducerClass);
+        jobFinal.setOutputKeyClass(Text.class);
+        jobFinal.setOutputValueClass(IntWritable.class);
+        FileInputFormat.addInputPath(jobFinal, new Path(args[0]));
+        FileOutputFormat.setOutputPath(jobFinal, new Path(args[1]));
+        System.exit(jobFinal.waitForCompletion(true) ? 0 : 1);
     }
 
     /**
