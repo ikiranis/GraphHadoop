@@ -105,16 +105,25 @@ public class Graph {
         }
     }
 
+    /**
+     * Υπολογίζει των μέσο όρο των βαθμών των κορυφών
+     *
+     * @return double
+     */
     private static double calculateAVG() throws IOException {
         int degreeSum = 0;
         int counter = 0;
 
+        // Διαβάζει το αρχείο αποτελεσμάτων
         File fs = new File(TMP_PATH + "/part-r-00000");
-        if (!fs.exists()) throw new IOException("Output not found!");
+        if (!fs.exists()) {
+            throw new IOException("Output not found!");
+        }
 
-        // average = total cases / number of records;
         BufferedReader br = new BufferedReader(new FileReader(fs));
         String line;
+
+        // Αθροίζει τους βαθμούς και μετράει τις κορυφές
         while ((line = br.readLine()) != null) {
             StringTokenizer st = new StringTokenizer(line);
             // grab type
@@ -125,18 +134,27 @@ public class Graph {
             counter++;
         }
 
+        // Υπολογίζει το μέσο όρο
         double average = (double) degreeSum / counter;
         System.out.println("The average is: " + average);
+
         return average;
     }
 
+    /**
+     * Διαγράφει τον προσωρινό φάκελο
+     *
+     * @param directoryToBeDeleted String
+     */
     private static void deleteDirectory(File directoryToBeDeleted) {
         File[] allContents = directoryToBeDeleted.listFiles();
+
         if (allContents != null) {
             for (File file : allContents) {
                 deleteDirectory(file);
             }
         }
+
         directoryToBeDeleted.delete();
     }
 
@@ -144,11 +162,15 @@ public class Graph {
         Class<? extends Reducer> reducerClass = null;
         String jobName = "";
 
+
+        // Έλεγχος αν έχει δοθεί παράμετρος για επιλογή του προγράμματος που θα τρέξει
         if(args[2] == null) {
             System.out.println("Add 3rd parameter to specify the program you want to run (1 or 2)");
             return;
         }
 
+        // 1: Για να τρέξει το Α που ζητάει η εργασία. 2: για να τρέξει το Β
+        // Θέτει τον αντίστοιχο reducer και το όνομα του job
         if(args[2].equals("1")) {
             reducerClass = GraphInOutReducer.class;
             jobName = "Graph In and Out Nodes";
@@ -167,22 +189,28 @@ public class Graph {
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[2].equals("1") ? args[1] : TMP_PATH));
 
+        // Αν η τρίτη παράμετρος είναι 1 τότε το πρόγραμμα τερματίζει μετά το πρώτο job
         if(args[2].equals("1")) {
             System.exit(job.waitForCompletion(true) ? 0 : 1);
         }
 
+
+        // Περιμένει να τελειώσει το πρώτο job
         job.waitForCompletion(true);
 
+        // Υπολογισμός μέσου όρου των βαθμών των κορυφών
         try {
             double avg = calculateAVG();
             File tmp = new File(TMP_PATH);
             deleteDirectory(tmp);
 
+            // Αποθηκεύει τον μέσο όρο στο configuration
             conf.setDouble("AVG", avg);
         } catch (IOException e) {
             e.printStackTrace();
         }
 
+        // Συνεχίζει ξανατρέχοντας το job, αφού πλέον γνωρίζει το μέσο όρο
         Job jobFinal = Job.getInstance(conf, jobName);
         jobFinal.setJarByClass(Graph.class);
         jobFinal.setMapperClass(GraphMapper.class);
