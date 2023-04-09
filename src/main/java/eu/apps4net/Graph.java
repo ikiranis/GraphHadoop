@@ -51,6 +51,7 @@ public class Graph {
         }
     }
 
+    // O reducer εξάγει το αποτέλεσμα στη μορφή "κορυφή (εξερχόμενες, εισερχόμενες)"
     public static class GraphInOutReducer extends Reducer<Text, IntWritable, Text, Text> {
         private final Text result = new Text();
 
@@ -79,6 +80,7 @@ public class Graph {
         }
     }
 
+    // O reducer εξάγει το αποτέλεσμα στη μορφή "κορυφή βαθμός"
     public static class GraphDegreeReducer extends Reducer<Text, IntWritable, Text, Text> {
         private final Text result = new Text();
 
@@ -86,6 +88,7 @@ public class Graph {
             Configuration conf = context.getConfiguration();
             double avg = 0;
 
+            // Αν έχει οριστεί μέσος όρος των βαθμών των κορυφών τότε τον πέρνουμε στην μεταβλητή avg
             if(conf.get("AVG") != null) {
                 avg = Double.parseDouble(conf.get("AVG"));
             }
@@ -97,6 +100,7 @@ public class Graph {
                 sum ++;
             }
 
+            // Αν ο βαθμός είναι μικρότερος του μέσου όρου των βαθμών των κορυφών τότε δεν εμφανίζουμε την κορυφή
             if(avg > 0 && sum < avg) {
                 return;
             }
@@ -179,6 +183,7 @@ public class Graph {
             jobName = "Graph nodes degree";
         }
 
+        // Πρώτη εκτέλεση MapReduce
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, jobName);
         job.setJarByClass(Graph.class);
@@ -187,6 +192,7 @@ public class Graph {
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
         FileInputFormat.addInputPath(job, new Path(args[0]));
+        // To output path είναι το TMP_PATH αν η τρίτη παράμετρος είναι 2
         FileOutputFormat.setOutputPath(job, new Path(args[2].equals("1") ? args[1] : TMP_PATH));
 
         // Αν η τρίτη παράμετρος είναι 1 τότε το πρόγραμμα τερματίζει μετά το πρώτο job
