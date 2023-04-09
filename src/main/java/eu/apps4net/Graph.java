@@ -18,7 +18,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class Graph {
     private static final String TMP_PATH = "output_tmp";    // Τοποθεσία για την πρώτη (προσωρινή) εκτέλεση του προγράμματος
-    private final static int minimumIn = 3; // Ελάχιστος αριθμός εισερχόμενων ακμών
+    private final static int minimumIn = 2; // Ελάχιστος αριθμός εισερχόμενων ακμών
     private final static int minimumOut = 2;    // Ελάχιστος αριθμός εξερχόμενων ακμών
 
     public static class GraphMapper extends Mapper<Object, Text, Text, IntWritable> {
@@ -59,7 +59,7 @@ public class Graph {
             int in = 0;
             int out = 0;
 
-            // Αθροίζουμε τις εξερχόμενες και εισερχόμενες ακμές
+            // Αθροίζει τις εξερχόμενες και εισερχόμενες ακμές
             for (IntWritable val : values) {
                if(val.get() == 1) {
                     out++;
@@ -68,12 +68,12 @@ public class Graph {
                 }
             }
 
-            // Αν οι εισερχόμενες/εξερχόμενες ακμές δεν είναι αρκετές τότε δεν εμφανίζουμε την κορυφή
+            // Αν οι εισερχόμενες/εξερχόμενες ακμές δεν είναι αρκετές τότε δεν εξάγει την κορυφή
             if(out < minimumOut || in < minimumIn) {
                 return;
             }
 
-            // Εμφανίζουμε το αποτέλεσμα
+            // Εξάγει το αποτέλεσμα στο context
             result.set(String.format("(%d, %d)", out, in));
 
             context.write(key, result);
@@ -85,17 +85,17 @@ public class Graph {
         private final Text result = new Text();
 
         public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            Configuration conf = context.getConfiguration();
+            Configuration conf = context.getConfiguration(); // Παίρνει της ρυθμίσεις του τρέχοντος job
             double avg = 0;
 
-            // Αν έχει οριστεί μέσος όρος των βαθμών των κορυφών τότε τον πέρνουμε στην μεταβλητή avg
+            // Αν έχει οριστεί μέσος όρος των βαθμών των κορυφών τότε τον παίρνει στη μεταβλητή avg
             if(conf.get("AVG") != null) {
                 avg = Double.parseDouble(conf.get("AVG"));
             }
 
             int sum = 0;
 
-            // Αθροίζουμε τις εξερχόμενες και εισερχόμενες ακμές
+            // Μετράει τις εξερχόμενες και εισερχόμενες ακμές (κάθε εμφάνιση κορυφής, ανεξάρτητα αν έχει τιμή 1 ή -1)
             for (IntWritable val : values) {
                 sum ++;
             }
@@ -105,7 +105,7 @@ public class Graph {
                 return;
             }
 
-            // Εμφανίζουμε το αποτέλεσμα
+            // Εξάγει το αποτέλεσμα στο context
             result.set(String.format("%d", sum));
 
             context.write(key, result);
@@ -200,12 +200,15 @@ public class Graph {
             System.exit(job.waitForCompletion(true) ? 0 : 1);
         }
 
-        // Περιμένει να τελειώσει το πρώτο job
+        // Περιμένει να τελειώσει το πρώτο job για να συνεχίσει
         job.waitForCompletion(true);
 
         // Υπολογισμός μέσου όρου των βαθμών των κορυφών
         try {
+            // Υπολογισμός μέσου όρου
             double avg = calculateAVG();
+
+            // Διαγράφει τον προσωρινό φάκελο
             File tmp = new File(TMP_PATH);
             deleteDirectory(tmp);
 
