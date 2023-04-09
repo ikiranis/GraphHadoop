@@ -17,9 +17,9 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class Graph {
-    private static final String TMP_PATH = "output_tmp";
-    private final static int minimumIn = 3;
-    private final static int minimumOut = 2;
+    private static final String TMP_PATH = "output_tmp";    // Τοποθεσία για την πρώτη (προσωρινή) εκτέλεση του προγράμματος
+    private final static int minimumIn = 3; // Ελάχιστος αριθμός εισερχόμενων ακμών
+    private final static int minimumOut = 2;    // Ελάχιστος αριθμός εξερχόμενων ακμών
 
     public static class GraphMapper extends Mapper<Object, Text, Text, IntWritable> {
         private final Text node = new Text();
@@ -36,6 +36,8 @@ public class Graph {
                 System.out.println(e.getMessage());
                 return;
             }
+
+            // Για κάθε κορυφή του ζευγαριού θέτει αν έχει εισερχόμενη ή εξερχόμενη ακμή
 
             // Η πρώτη κορυφή έχει εξερχόμενη ακμή
             node.set(String.valueOf(pair.getFirst()));
@@ -65,6 +67,7 @@ public class Graph {
                 }
             }
 
+            // Αν οι εισερχόμενες/εξερχόμενες ακμές δεν είναι αρκετές τότε δεν εμφανίζουμε την κορυφή
             if(out < minimumOut || in < minimumIn) {
                 return;
             }
@@ -125,20 +128,18 @@ public class Graph {
 
         // Αθροίζει τους βαθμούς και μετράει τις κορυφές
         while ((line = br.readLine()) != null) {
+            // Μετατρέπει τη γραμμή σε tokens (node, degree)
             StringTokenizer st = new StringTokenizer(line);
-            // grab type
-            String node = st.nextToken();
-            String degree = st.nextToken();
+
+            String node = st.nextToken();   // Η κορυφή δε μας ενδιαφέρει και την προσπερνούμε
+            String degree = st.nextToken(); // Ο βαθμός της κορυφής
 
             degreeSum += Integer.parseInt(degree);
             counter++;
         }
 
-        // Υπολογίζει το μέσο όρο
-        double average = (double) degreeSum / counter;
-        System.out.println("The average is: " + average);
-
-        return average;
+        // Υπολογίζει και επιστρέφει το μέσο όρο
+        return (double) degreeSum / counter;
     }
 
     /**
@@ -161,7 +162,6 @@ public class Graph {
     public static void main(String[] args) throws Exception {
         Class<? extends Reducer> reducerClass = null;
         String jobName = "";
-
 
         // Έλεγχος αν έχει δοθεί παράμετρος για επιλογή του προγράμματος που θα τρέξει
         if(args[2] == null) {
@@ -193,7 +193,6 @@ public class Graph {
         if(args[2].equals("1")) {
             System.exit(job.waitForCompletion(true) ? 0 : 1);
         }
-
 
         // Περιμένει να τελειώσει το πρώτο job
         job.waitForCompletion(true);
